@@ -2,7 +2,7 @@ import re
 
 from Bio import Align
 
-from lib.genalog_preprocess import _is_spacing, tokenize
+from .genalog_preprocess import _is_spacing, tokenize
 
 MATCH_REWARD = 1
 GAP_PENALTY = -0.5
