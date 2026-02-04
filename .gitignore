@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+aligned_*.txt
+*.xlsx
+input/
+output/
+alignment_table.xlsx
