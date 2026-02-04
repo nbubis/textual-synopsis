@@ -1,7 +1,11 @@
 [project]
-name = "code"
+name = "textual-synopsis"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = []
+description = "Text Alignment Tool"
+dependencies = [
+    "streamlit>=1.20",
+    "pandas",
+    "openpyxl",
+    "biopython>=1.80",
+    "numpy",
+]
