@@ -18,4 +18,4 @@ dependencies = [
 ]
 
 [tool.setuptools]
-packages = ["lib"]
+packages = ["textual_synopsis"]
