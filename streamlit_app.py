@@ -2,7 +2,7 @@ import streamlit as st
 import tempfile
 import os
 import shutil
-from pipeline_logic import run_alignment_pipeline
+from lib.pipeline import run_alignment_pipeline
 
 st.title("Align Text Files")
 

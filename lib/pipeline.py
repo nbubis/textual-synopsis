@@ -1,8 +1,8 @@
 import argparse
 import os
 import sys
-from multi_align import load_texts_from_directory, StarAligner
-from to_excel import create_excel_from_aligned
+from .multi_align import load_texts_from_directory, StarAligner
+from .to_excel import create_excel_from_aligned
 
 
 def run_alignment_pipeline(input_dir, output_dir):

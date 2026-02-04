@@ -1,8 +1,8 @@
 import os
 import glob
-from lib import genalog_alignment
-from lib.genalog_anchor import align_w_anchor
-from lib.genalog_preprocess import tokenize, join_tokens
+from . import genalog_alignment
+from .genalog_anchor import align_w_anchor
+from .genalog_preprocess import tokenize, join_tokens
 
 
 def load_texts_from_directory(directory_path):
