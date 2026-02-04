@@ -19,3 +19,5 @@ dependencies = [
 
 [tool.setuptools]
 packages = ["lib"]
+py-modules = ["pipeline_logic", "streamlit_app"]
+
