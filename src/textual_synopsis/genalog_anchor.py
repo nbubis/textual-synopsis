@@ -16,10 +16,10 @@ We rely on `genalog.text.alignment` to align the subsequences.
 import itertools
 from collections import Counter
 
-from lib import genalog_alignment as alignment
-from lib import genalog_preprocess as preprocess
-from lib.genalog_alignment import GAP_CHAR
-from lib.genalog_lcs import LCS
+from . import genalog_alignment as alignment
+from . import genalog_preprocess as preprocess
+from .genalog_alignment import GAP_CHAR
+from .genalog_lcs import LCS
 
 MAX_ALIGN_SEGMENT_LENGTH = 100  # in characters length
 
