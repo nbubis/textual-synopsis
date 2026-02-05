@@ -113,6 +113,40 @@ def align_to_words(texts):
     return rows
 
 
+def create_printable_chunks(df, chunk_size=20):
+    """
+    Create a printable version of the DataFrame by chunking columns.
+
+    Args:
+        df: DataFrame with sources as rows and words as columns
+        chunk_size: Number of word columns per chunk (default 20 for A4 landscape)
+
+    Returns:
+        DataFrame with chunks stacked vertically, separated by blank rows
+    """
+    num_cols = len(df.columns)
+    chunks = []
+
+    # Split into chunks
+    for start_col in range(0, num_cols, chunk_size):
+        end_col = min(start_col + chunk_size, num_cols)
+        chunk_df = df.iloc[:, start_col:end_col].copy()
+        chunks.append(chunk_df)
+
+    # Stack chunks vertically with blank rows between them
+    result_chunks = []
+    for i, chunk in enumerate(chunks):
+        result_chunks.append(chunk)
+        if i < len(chunks) - 1:  # Add blank row between chunks (except after last)
+            # Create a blank row with empty strings
+            blank_row = pd.DataFrame(
+                [[""] * len(chunk.columns)], columns=chunk.columns, index=[""]
+            )
+            result_chunks.append(blank_row)
+
+    return pd.concat(result_chunks, axis=0)
+
+
 def create_excel_from_aligned(aligned_dir, output_file):
     texts = load_aligned_texts(aligned_dir)
     if not texts:
@@ -127,22 +161,35 @@ def create_excel_from_aligned(aligned_dir, output_file):
         data[t["name"]] = rows[i]
 
     df = pd.DataFrame.from_dict(data, orient="index")
-    df.to_excel(output_file, header=False)
+
+    # Create Excel with two sheets: Original and Printable
+    with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+        # Original sheet - full width
+        df.to_excel(writer, sheet_name="Original", header=False)
+
+        # Printable sheet - chunked for A4 landscape
+        chunked_df = create_printable_chunks(df, chunk_size=20)
+        chunked_df.to_excel(writer, sheet_name="Printable", header=False)
 
     # Post-process with openpyxl for formatting
     wb = openpyxl.load_workbook(output_file)
-    ws = wb.active
 
-    # Set Right-to-Left direction
-    ws.sheet_view.rightToLeft = True
+    # Apply formatting to both sheets
+    for sheet_name in ["Original", "Printable"]:
+        ws = wb[sheet_name]
 
-    # Bold the first column (Column A)
-    bold_font = Font(bold=True)
-    for cell in ws["A"]:
-        cell.font = bold_font
+        # Set Right-to-Left direction
+        ws.sheet_view.rightToLeft = True
+
+        # Bold the first column (Column A - source names)
+        bold_font = Font(bold=True)
+        for cell in ws["A"]:
+            cell.font = bold_font
 
     wb.save(output_file)
-    print(f"Written Excel alignment to {output_file} (RTL, Bold headers)")
+    print(f"Written Excel alignment to {output_file}")
+    print(f"  - 'Original' tab: Full alignment ({len(df.columns)} columns)")
+    print(f"  - 'Printable' tab: Chunked for A4 printing (20 columns per chunk)")
 
 
 def main():
