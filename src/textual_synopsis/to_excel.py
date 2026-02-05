@@ -125,12 +125,22 @@ def create_printable_chunks(df, chunk_size=20):
         DataFrame with chunks stacked vertically, separated by blank rows
     """
     num_cols = len(df.columns)
+    max_cols = chunk_size  # Maximum columns in any chunk
     chunks = []
 
-    # Split into chunks
+    # Split into chunks, padding each to the same width
     for start_col in range(0, num_cols, chunk_size):
         end_col = min(start_col + chunk_size, num_cols)
         chunk_df = df.iloc[:, start_col:end_col].copy()
+
+        # Pad chunk with empty columns to reach chunk_size
+        cols_to_add = max_cols - len(chunk_df.columns)
+        if cols_to_add > 0:
+            for j in range(cols_to_add):
+                chunk_df[len(chunk_df.columns)] = ""
+
+        # Reset column names to 0, 1, 2, ... for consistent alignment
+        chunk_df.columns = range(len(chunk_df.columns))
         chunks.append(chunk_df)
 
     # Stack chunks vertically with blank rows between them
@@ -140,7 +150,7 @@ def create_printable_chunks(df, chunk_size=20):
         if i < len(chunks) - 1:  # Add blank row between chunks (except after last)
             # Create a blank row with empty strings
             blank_row = pd.DataFrame(
-                [[""] * len(chunk.columns)], columns=chunk.columns, index=[""]
+                [[""] * max_cols], columns=range(max_cols), index=[""]
             )
             result_chunks.append(blank_row)
 
