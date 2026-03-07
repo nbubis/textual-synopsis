@@ -1,7 +1,6 @@
 import streamlit as st
 import tempfile
 import os
-import shutil
 from textual_synopsis.pipeline import run_alignment_pipeline
 
 st.title("Align Text Files")
@@ -12,12 +11,28 @@ Upload multiple text files to align them.
 - Requirement: At least 2 files
 - Output: An Excel sheet (`alignment_table.xlsx`) with aligned words.
 """)
+st.markdown("""
+<style>
+    /* Hide the default Streamlit file uploader file list and pagination */
+    [data-testid="stFileUploaderDropzone"] + div {
+        display: none !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 uploaded_files = st.file_uploader(
     "Choose text files", accept_multiple_files=True, type=["txt"]
 )
 
 if uploaded_files:
+    import pandas as pd
+    
+    # Custom display for all uploaded files showing many at once instead of just 3
+    with st.expander(f"View {len(uploaded_files)} Uploaded Files", expanded=True):
+        file_data = [{"File Name": f.name, "Size (KB)": round(f.size / 1024, 1)} for f in uploaded_files]
+        # Height allows for ~20 files before scrolling
+        st.dataframe(pd.DataFrame(file_data), use_container_width=True, hide_index=True, height=min(800, max(150, len(uploaded_files)*36 + 43)))
+
     if len(uploaded_files) < 2:
         st.warning("Please upload at least 2 files to align.")
     else:

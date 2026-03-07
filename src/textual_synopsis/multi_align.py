@@ -2,7 +2,7 @@ import os
 import glob
 from . import genalog_alignment
 from .genalog_anchor import align_w_anchor
-from .genalog_preprocess import tokenize, join_tokens
+from .genalog_preprocess import tokenize
 
 
 def load_texts_from_directory(directory_path):
@@ -17,10 +17,9 @@ def load_texts_from_directory(directory_path):
         if os.path.isfile(f):
             try:
                 with open(f, "r", encoding="utf-8") as f_obj:
-                    # Normalize text: tokenize and rejoin to ensure consistency with genalog alignment
-                    # This removes newlines and extra spaces, preventing length mismatches in Star Alignment
                     raw_content = f_obj.read()
-                    normalized_content = join_tokens(tokenize(raw_content))
+                    # Return tokenized list directly!
+                    normalized_content = tokenize(raw_content)
                     texts.append((os.path.basename(f), normalized_content))
             except Exception as e:
                 print(f"Skipping {f} due to error: {e}")
@@ -48,7 +47,7 @@ class StarAligner:
                 pivot_idx = i
         return pivot_idx
 
-    def align(self):
+    def _align_tokens(self):
         if not self.texts:
             return []
 
@@ -71,10 +70,10 @@ class StarAligner:
         }
 
         num_others = len(other_indices)
-        slots = [["" for _ in range(num_others)] for _ in range(len(P) + 1)]
+        slots = [[[] for _ in range(num_others)] for _ in range(len(P) + 1)]
 
-        # matches[k] holds the character aligned to P[k] for each other text
-        matches = [["" for _ in range(num_others)] for _ in range(len(P))]
+        # matches[k] holds the token aligned to P[k] for each other text
+        matches = [[self.gap_char for _ in range(num_others)] for _ in range(len(P))]
 
         print(f"Selected pivot: {pivot_id} (Length: {len(P)})")
 
@@ -109,7 +108,7 @@ class StarAligner:
                     # assert char_p == P[p_idx]
 
                     # Commit pending insertions to the slot BEFORE P[p_idx]
-                    slots[p_idx][mapped_i] = "".join(current_insertion)
+                    slots[p_idx][mapped_i] = current_insertion
                     current_insertion = []
 
                     # Record the match for P[p_idx]
@@ -119,7 +118,7 @@ class StarAligner:
 
             # Commit remaining insertions to the last slot (after P ends)
             if current_insertion:
-                slots[p_idx][mapped_i] = "".join(current_insertion)
+                slots[p_idx][mapped_i] = current_insertion
 
         # distinct handling for "matches" vs "slots"
         # slots need padding to max length of insertion at that position
@@ -137,19 +136,36 @@ class StarAligner:
             # 1. Process Insertions (Slots) at position k
             # Find max length of insertion across all other texts at this slot
             max_ins_len = 0
-            for ins_str in slots[k]:
-                if len(ins_str) > max_ins_len:
-                    max_ins_len = len(ins_str)
+            for ins_list in slots[k]:
+                if len(ins_list) > max_ins_len:
+                    max_ins_len = len(ins_list)
 
             if max_ins_len > 0:
-                # Pivot has gaps here (it didn't have these chars)
-                final_rows[pivot_row_idx].append(self.gap_char * max_ins_len)
-
-                for mapped_i, original_i in enumerate(other_row_indices):
-                    ins_str = slots[k][mapped_i]
-                    # align left, pad right with gaps
-                    padding = max_ins_len - len(ins_str)
-                    final_rows[original_i].append(ins_str + (self.gap_char * padding))
+                # Align the insertions properly instead of left-padding them rigidly!
+                if max_ins_len == 1:
+                    # Simple padding, no need for recursive alignment
+                    final_rows[pivot_row_idx].append(self.gap_char)
+                    for mapped_i, original_i in enumerate(other_row_indices):
+                        ins_list = slots[k][mapped_i]
+                        if len(ins_list) == 1:
+                            final_rows[original_i].append(ins_list[0])
+                        else:
+                            final_rows[original_i].append(self.gap_char)
+                else:
+                    # Recursive mini-StarAligner to align disparate insertions
+                    ins_texts = []
+                    for mapped_i, original_i in enumerate(other_row_indices):
+                        ins_texts.append((str(original_i), slots[k][mapped_i]))
+                    
+                    # Also include the pivot (which is all gaps for this block)
+                    # We just use the first 'other' that's longest to be a mock pivot.
+                    mini_aligner = StarAligner(ins_texts)
+                    mini_rows = mini_aligner._align_tokens()
+                    
+                    actual_ins_len = len(mini_rows[0])
+                    final_rows[pivot_row_idx].extend([self.gap_char] * actual_ins_len)
+                    for mapped_i, original_i in enumerate(other_row_indices):
+                        final_rows[original_i].extend(mini_rows[mapped_i])
 
             # 2. Process Match at matched P[k] (if k < len(P))
             if k < len(P):
@@ -158,12 +174,18 @@ class StarAligner:
 
                 for mapped_i, original_i in enumerate(other_row_indices):
                     match_char = matches[k][mapped_i]
-                    # If match_char was empty (shouldn't be if logic is correct), assume gap?
-                    # logic ensures matches is filled for 0..len(P)-1
                     final_rows[original_i].append(match_char)
+        
+        return final_rows
 
-        # Join lists
-        final_strings = ["".join(row) for row in final_rows]
+    def align(self):
+        if not self.texts:
+            return []
+            
+        final_rows = self._align_tokens()
+
+        # Join lists for output file
+        final_strings = [" ".join(row) for row in final_rows]
 
         # Pack results
         results = []

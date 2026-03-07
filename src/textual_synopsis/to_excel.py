@@ -23,94 +23,41 @@ def align_to_words(texts):
     if not texts:
         return []
 
-    # Verify lengths
-    length = len(texts[0]["content"])
+    rows = []
+    gap_char = "@"
+
     for t in texts:
-        if len(t["content"]) != length:
+        content = t["content"].strip()
+        if not content:
+            words = []
+        else:
+            words = content.split(" ")
+        
+        clean_words = ["" if w == gap_char else w for w in words]
+        rows.append(clean_words)
+
+    if not rows:
+        return []
+
+    length = len(rows[0])
+    for i, r in enumerate(rows):
+        if len(r) != length:
             raise ValueError(
-                f"Length mismatch: {t['name']} has {len(t['content'])} vs {length}"
+                f"Length mismatch: {texts[i]['name']} has {len(r)} words vs {length} words"
             )
 
-    # Matrix of words
-    rows = [[] for _ in texts]
+    # Filter out columns where all rows are empty strings
+    valid_cols = []
+    for col_idx in range(length):
+        if any(rows[row_idx][col_idx] != "" for row_idx in range(len(rows))):
+            valid_cols.append(col_idx)
 
-    # Current word buffer for each row
-    current_words = [[] for _ in texts]
+    filtered_rows = [[] for _ in rows]
+    for col_idx in valid_cols:
+        for row_idx in range(len(rows)):
+            filtered_rows[row_idx].append(rows[row_idx][col_idx])
 
-    gap_char = "@"  # Hardcoded based on lib/genalog_alignment.py
-
-    for i in range(length):
-        chars = [t["content"][i] for t in texts]
-
-        # Check if this column triggers a word break
-        # Break if ANY text has a space
-        is_break = any(c == " " for c in chars)
-
-        if is_break:
-            # Commit current words
-            for row_idx in range(len(texts)):
-                word = "".join(current_words[row_idx])
-                # Filter out gaps? or keep them?
-                # User wants "single word". Gaps are not words.
-                # If word is "abc@@", it should be "abc".
-                # If word is "@@@", it becomes "".
-                clean_word = word.replace(gap_char, "")
-                rows[row_idx].append(clean_word)
-                current_words[row_idx] = []
-        else:
-            # Append characters
-            for row_idx, char in enumerate(chars):
-                # We append everything, including gaps, and clean at commit time
-                # Or clean now? No, keep logic simple.
-                if char != " ":  # Don't append the space itself?
-                    # genalog alignment might align ' ' with ' '.
-                    # If we break on space, we consume the space.
-                    # What if ' ' aligns with '@'?
-                    # Then '@' is effectively a space holder.
-                    # We should NOT append '@' if it aligns to space.
-                    # But here we are in "else" (non-break).
-                    # Wait, if is_break is True, we commit.
-                    # What happens to the character at `i`?
-                    # It is a space (or aligned gap). It should be consumed as delimiter.
-                    pass
-
-            # Oh wait.
-            # If `chars` has ' ' at row 0, and 'X' at row 1.
-            # This is a conflict! space shouldn't align with char usually.
-            # But if it does?
-            # 'My cat'
-            # 'Mypcat'
-            # Aligned: 'My cat'
-            #          'Mypcat'
-            # At space: row 0 is ' ', row 1 is 'p'.
-            # If we break: row 0 commits "My", row 1 commits "My".
-            # Next word starts: row 0 starts "cat", row 1 starts "cat" (with 'p' lost?)
-            # NO. 'p' must belong to one of them.
-            # If ' ' aligns with 'p' (substitution), then 'p' is part of the word? Or start of next?
-            # Space usually treated as delimiter. 'p' becomes a delimiter? No.
-            #
-            # In our case, with Star Alignment and gaps:
-            # Space should align with Space or Gap.
-            # If Space aligns with Char, it's a Substitution. Genalog penalty for Space-Mismatch is high?
-            # "SPACE_MISMATCH_PENALTY = 0.1" in addition to mismatch.
-            # So likely space aligns with space or gap.
-            #
-            # Assumption: Space aligns only with Space or Gap.
-            # If so, the column `i` is a delimiter column.
-            # We discard `chars[i]` (spaces and gaps).
-            pass
-
-            if not is_break:
-                for row_idx, char in enumerate(chars):
-                    current_words[row_idx].append(char)
-
-    # Commit last word
-    for row_idx in range(len(texts)):
-        word = "".join(current_words[row_idx])
-        clean_word = word.replace(gap_char, "")
-        rows[row_idx].append(clean_word)
-
-    return rows
+    return filtered_rows
 
 
 def create_printable_chunks(df, chunk_size=20):
