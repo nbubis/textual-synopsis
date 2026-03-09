@@ -146,7 +146,51 @@ def create_excel_from_aligned(aligned_dir, output_file):
     wb.save(output_file)
     print(f"Written Excel alignment to {output_file}")
     print(f"  - 'Original' tab: Full alignment ({len(df.columns)} columns)")
-    print(f"  - 'Printable' tab: Chunked for A4 printing (20 columns per chunk)")
+    print("  - 'Printable' tab: Chunked for A4 printing (20 columns per chunk)")
+
+
+def add_printable_tab_to_excel(input_file, output_file, chunk_size=20):
+    """
+    Reads an existing Excel file, takes the first sheet,
+    and appends a new 'Printable' sheet chunked for printing.
+    Keeps the existing sheets as they are.
+    """
+    # Read all sheets to preserve them
+    all_sheets = pd.read_excel(input_file, header=None, index_col=0, sheet_name=None)
+    if not all_sheets:
+        raise ValueError("The provided Excel file has no sheets.")
+
+    first_sheet_name = list(all_sheets.keys())[0]
+    first_df = all_sheets[first_sheet_name]
+
+    # Create Excel with original sheets and new Printable sheet
+    with pd.ExcelWriter(output_file, engine="openpyxl") as writer:
+        # Write existing sheets
+        for sheet_name, sheet_df in all_sheets.items():
+            # If the user uploads an excel that already has Printable, skip the old one
+            if sheet_name == "Printable":
+                continue
+            sheet_df.to_excel(writer, sheet_name=sheet_name, header=False)
+
+        # Printable sheet - chunked for A4 landscape based on the first sheet
+        chunked_df = create_printable_chunks(first_df, chunk_size=chunk_size)
+        chunked_df.to_excel(writer, sheet_name="Printable", header=False)
+
+    # Post-process with openpyxl for formatting
+    wb = openpyxl.load_workbook(output_file)
+
+    # Apply formatting to all sheets
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        # Set Right-to-Left direction
+        ws.sheet_view.rightToLeft = True
+        # Bold the first column (Column A - source names)
+        bold_font = Font(bold=True)
+        for cell in ws["A"]:
+            cell.font = bold_font
+
+    wb.save(output_file)
+    print(f"Added 'Printable' tab to {output_file}")
 
 
 def main():
