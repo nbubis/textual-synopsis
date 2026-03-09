@@ -2,7 +2,7 @@ import glob
 import pandas as pd
 import os
 import openpyxl
-from openpyxl.styles import Font
+from openpyxl.styles import Font, Border, Side
 
 
 def load_aligned_texts(directory="."):
@@ -128,22 +128,8 @@ def create_excel_from_aligned(aligned_dir, output_file):
         chunked_df = create_printable_chunks(df, chunk_size=20)
         chunked_df.to_excel(writer, sheet_name="Printable", header=False)
 
-    # Post-process with openpyxl for formatting
-    wb = openpyxl.load_workbook(output_file)
+    _apply_excel_formatting(output_file, num_sources=len(df.index), chunk_size=20)
 
-    # Apply formatting to both sheets
-    for sheet_name in ["Original", "Printable"]:
-        ws = wb[sheet_name]
-
-        # Set Right-to-Left direction
-        ws.sheet_view.rightToLeft = True
-
-        # Bold the first column (Column A - source names)
-        bold_font = Font(bold=True)
-        for cell in ws["A"]:
-            cell.font = bold_font
-
-    wb.save(output_file)
     print(f"Written Excel alignment to {output_file}")
     print(f"  - 'Original' tab: Full alignment ({len(df.columns)} columns)")
     print("  - 'Printable' tab: Chunked for A4 printing (20 columns per chunk)")
@@ -176,21 +162,68 @@ def add_printable_tab_to_excel(input_file, output_file, chunk_size=20):
         chunked_df = create_printable_chunks(first_df, chunk_size=chunk_size)
         chunked_df.to_excel(writer, sheet_name="Printable", header=False)
 
-    # Post-process with openpyxl for formatting
-    wb = openpyxl.load_workbook(output_file)
+    _apply_excel_formatting(output_file, num_sources=len(first_df.index), chunk_size=chunk_size)
 
-    # Apply formatting to all sheets
+    print(f"Added 'Printable' tab to {output_file}")
+
+def _apply_excel_formatting(output_file, num_sources, chunk_size):
+    wb = openpyxl.load_workbook(output_file)
+    thick = Side(border_style="medium", color="000000")
+    thin = Side(border_style="thin", color="000000")
+
     for sheet_name in wb.sheetnames:
         ws = wb[sheet_name]
-        # Set Right-to-Left direction
         ws.sheet_view.rightToLeft = True
-        # Bold the first column (Column A - source names)
+
         bold_font = Font(bold=True)
         for cell in ws["A"]:
             cell.font = bold_font
 
+        # Auto-resize columns
+        for col in ws.columns:
+            max_length = 0
+            column_letter = col[0].column_letter
+            for cell in col:
+                try:
+                    val_str = str(cell.value) if cell.value is not None else ""
+                    if len(val_str) > max_length:
+                        max_length = len(val_str)
+                except Exception:
+                    pass
+            adjusted_width = (max_length + 2) * 1.2
+            ws.column_dimensions[column_letter].width = adjusted_width
+
+        # Apply borders for Printable chunks array
+        if sheet_name == "Printable":
+            max_row = ws.max_row
+            total_cols = chunk_size + 1  # Data cols + Column A index
+            
+            # Form chunks spaced by a single blank delimiter
+            for start_row in range(1, max_row + 1, num_sources + 1):
+                end_row = min(start_row + num_sources - 1, max_row)
+                
+                # Check target chunk bounds don't hit the empty filler row exclusively
+                if not ws.cell(row=start_row, column=1).value:
+                    continue  
+                
+                # Paint the border perimeter
+                for r in range(start_row, end_row + 1):
+                    for c in range(1, total_cols + 1):
+                        cell = ws.cell(row=r, column=c)
+                        borders = {'top': thin, 'bottom': thin, 'left': thin, 'right': thin}
+                        
+                        if r == start_row:
+                            borders['top'] = thick
+                        if r == end_row:
+                            borders['bottom'] = thick
+                        if c == 1:
+                            borders['left'] = thick
+                        if c == total_cols:
+                            borders['right'] = thick
+                            
+                        cell.border = Border(**borders)
+
     wb.save(output_file)
-    print(f"Added 'Printable' tab to {output_file}")
 
 
 def main():
